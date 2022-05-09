@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @CrossOrigin(origins = "https://leicon-rw.vercel.app")
+
 @RequestMapping("api/v1/customers")
 @RestController
 public class CustomersController {
