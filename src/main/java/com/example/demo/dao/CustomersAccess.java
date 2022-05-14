@@ -2,6 +2,7 @@ package com.example.demo.dao;
 
 import com.example.demo.models.Admins;
 import com.example.demo.models.Customers;
+import com.example.demo.models.Product;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -33,25 +34,13 @@ public class CustomersAccess implements  CustomerDao {
         String sql = "INSERT INTO customers (gateId, username, email, secretPin, district, sector, telephone)" +
                 " VALUES(?,?,?,?,?,?,?)";
 
-        int min = 1111;
-        int max = 9999;
-        Random random = new Random();
-        int value = random.nextInt(max + min) + min;
-
-        int min2 = 100;
-        int max2 = 999;
-        Random random2 = new Random();
-        int value2 = random2.nextInt(max2 + min2) + min2;
-
-        String num = value + "" + value2;
-
-         String exists = "SELECT username FROM customers WHERE gateId = " + num;
+         String exists = "SELECT username FROM customers WHERE gateId = " + customer.getGateId();
+         System.out.println(customer.getGateId());
         jdbcTemplate.query(exists, new ResultSetExtractor<List<Customers>>() {
 
             @Override
             public List<Customers> extractData(ResultSet rs) throws SQLException, DataAccessException {
                 if (rs.next()) {
-                    insertCustomer(customer);
                     return null;
                 } else {
                     if(customer.getSecretPin() == ""){
@@ -63,9 +52,12 @@ public class CustomersAccess implements  CustomerDao {
                  if(customer.getSecretPin() != ""){
                      String encodedPassword = passwordEncoder.encode(customer.getSecretPin());
 
-                     int result = jdbcTemplate.update(sql, num, customer.getUsername(),
+                     int result = jdbcTemplate.update(sql, customer.getGateId(), customer.getUsername(),
                              customer.getEmail(),encodedPassword, customer.getDistrict(),
                              customer.getSector(), customer.getTelephone());
+
+                      jdbcTemplate.update("UPDATE products set status = 'sold' where gateId = ?", new Object[] {customer.getGateId()});
+
                  }
 
                     return null;
@@ -104,36 +96,94 @@ public class CustomersAccess implements  CustomerDao {
     }
 
     public int approveCustomer(int id,Customers newInfo){
-        int min = 1111;
-        int max = 9999;
-        Random random = new Random();
-        int value = random.nextInt(max + min) + min;
 
-        int min2 = 100;
-        int max2 = 999;
-        Random random2 = new Random();
-        int value2 = random2.nextInt(max2 + min2) + min2;
-
-        String num = value + "" + value2;
-
-        String exists = "SELECT username FROM customers WHERE gateId = " + num;
+        String exists = "SELECT username FROM customers WHERE gateId = " + newInfo.getGateId();
         jdbcTemplate.query(exists, new ResultSetExtractor<Integer>() {
 
                     @Override
                     public Integer extractData(ResultSet rs) throws SQLException, DataAccessException {
                         if (rs.next()) {
-                            approveCustomer(id, newInfo);
                             return null;
                         } else {
                             String sql = "UPDATE customers set gateId  = ? ," +
                                     " secretPin = ? where id = ?";
 
                             String encodedPassword = passwordEncoder.encode(newInfo.getSecretPin());
+                            jdbcTemplate.update("UPDATE products set status = 'sold' where gateId = ?", new Object[] {newInfo.getGateId()});
 
-                           return jdbcTemplate.update(sql, new Object[] {num, encodedPassword, id});
+                           return jdbcTemplate.update(sql, new Object[] {newInfo.getGateId(), encodedPassword, id});
                         }
                     }
                 });
         return 0;
+    }
+
+    public List getCustomerPassword(Customers customer){
+
+        List list = new ArrayList();
+
+        String sql = "SELECT * FROM customers WHERE gateId = "+customer.getGateId();
+
+        jdbcTemplate.query(sql, new ResultSetExtractor<List<Customers>>() {
+            @Override
+            public List<Customers> extractData(ResultSet rs) throws SQLException, DataAccessException {
+                if(rs.next()) {
+                    String hashPass = rs.getString("secretPin");
+
+                    Boolean isValid = passwordEncoder.matches(customer.getSecretPin(), hashPass);
+
+                    if(isValid ==true){
+                        String username = rs.getString("username");
+                        String sql2 = "SELECT * FROM products where gateId = "+rs.getInt("gateId");
+
+                        jdbcTemplate.query(sql2, new ResultSetExtractor<List<Product>>() {
+
+                            @Override
+                            public List<Product> extractData(ResultSet rs) throws SQLException, DataAccessException {
+                                if(rs.next()){
+                                    String password = rs.getString("password");
+                                    list.add(password);
+                                    list.add(username);
+
+                                    return list;
+
+                                }else{
+                                    return list;
+                                }
+                            }
+                        });
+                    }else{
+                        list.add("Incorrect gateId or secretPin");
+                        return list;
+                    }
+            }else{
+                    list.add("Incorrect gateId or secretPin");
+                    return list;
+                }
+                return list;
+        }
+        });
+
+        return list;
+    }
+
+    public List getRemoteCode(Customers product) {
+        String sql = "SELECT * FROM products where gateId = "+product.getGateId();
+
+        List list = new ArrayList();
+        jdbcTemplate.query(sql, new ResultSetExtractor<List<Product>>() {
+
+            @Override
+            public List<Product> extractData(ResultSet rs) throws SQLException, DataAccessException {
+                if(rs.next()){
+                    list.add(rs.getString("remoteCode"));
+                    return list;
+                }else{
+                    list.add("Incorrect gateId");
+                    return list;
+                }
+            }
+        });
+        return list;
     }
 }
